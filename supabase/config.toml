@@ -1,0 +1,56 @@
+project_id = "ai-music-cover"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[local_smtp]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "20MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173"]
+enable_signup = true
+enable_anonymous_sign_ins = true
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+inspector_port = 8083
+
+[functions.create-job]
+verify_jwt = false
+[functions.regenerate-moods]
+verify_jwt = false
+[functions.select-mood]
+verify_jwt = false
+[functions.request-changes]
+verify_jwt = false
+[functions.request-upscale]
+verify_jwt = false
+[functions.get-signed-image]
+verify_jwt = false
+[functions.cancel-job]
+verify_jwt = false
+[functions.process-mood-queue]
+verify_jwt = false
+[functions.process-final-queue]
+verify_jwt = false
+[functions.process-upscale-queue]
+verify_jwt = false

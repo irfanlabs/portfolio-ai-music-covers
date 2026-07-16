@@ -39,25 +39,43 @@ export async function generateImage(
     seed?: number;
   },
 ): Promise<GeneratedImage> {
-  const response = await fetch(`${config.openRouterBaseUrl}/images/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.openRouterKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": config.openRouterReferer,
-      "X-Title": "AI Image Studio",
-    },
-    body: JSON.stringify({
-      model: input.model,
-      prompt: input.prompt,
-      aspect_ratio: "3:4",
-      resolution: input.resolution,
-      input_references: (input.inputReferences ?? []).map((url) => ({
-        image_url: { url },
-      })),
-      ...(input.seed === undefined ? {} : { seed: input.seed }),
-    }),
-  });
+  // Bound the request ourselves rather than letting the platform hard-kill
+  // the isolate on its own wall-clock limit, which would skip our catch
+  // block and leave the generation stuck in "processing" forever.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.openRouterTimeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${config.openRouterBaseUrl}/images/generations`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${config.openRouterKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": config.openRouterReferer,
+        "X-Title": "AI Image Studio",
+      },
+      body: JSON.stringify({
+        model: input.model,
+        prompt: input.prompt,
+        aspect_ratio: "3:4",
+        resolution: input.resolution,
+        input_references: (input.inputReferences ?? []).map((url) => ({
+          type: "image_url",
+          image_url: { url },
+        })),
+        ...(input.seed === undefined ? {} : { seed: input.seed }),
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`OpenRouter request timed out after ${config.openRouterTimeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const raw = await response.text();
   let payload: Record<string, unknown>;
@@ -87,7 +105,24 @@ export async function generateImage(
       ? image.image_url
       : null;
     if (!url) throw new Error("OpenRouter image had neither b64_json nor URL");
-    const imageResponse = await fetch(url);
+    const downloadController = new AbortController();
+    const downloadTimeout = setTimeout(
+      () => downloadController.abort(),
+      config.openRouterTimeoutMs,
+    );
+    let imageResponse: Response;
+    try {
+      imageResponse = await fetch(url, { signal: downloadController.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(
+          `Downloading generated image timed out after ${config.openRouterTimeoutMs}ms`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(downloadTimeout);
+    }
     if (!imageResponse.ok) {
       throw new Error(`Could not download generated image (${imageResponse.status})`);
     }

@@ -39,6 +39,7 @@ export function loadConfig() {
     leaseSeconds: integer("GENERATION_LEASE_SECONDS", 240, 30, 900),
     maxRetries: integer("MAX_RETRIES", 3, 1, 10),
     signedUrlSeconds: integer("SIGNED_URL_TTL_SECONDS", 300, 30, 3600),
+    openRouterTimeoutMs: integer("OPENROUTER_TIMEOUT_MS", 90_000, 5_000, 240_000),
     createRateLimit: integer("CREATE_JOB_RATE_LIMIT_PER_HOUR", 10, 1, 1000),
     createIpRateLimit: integer(
       "CREATE_JOB_IP_RATE_LIMIT_PER_HOUR",

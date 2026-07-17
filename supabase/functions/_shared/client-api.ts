@@ -3,7 +3,7 @@ import { requireUser } from "./auth.ts";
 import { loadConfig } from "./config.ts";
 import { serviceClient } from "./db.ts";
 import { body, corsHeaders, handleError, HttpError, json, requestId } from "./http.ts";
-import { signedObjectUrl } from "./storage.ts";
+import { deleteJobAssets, signedObjectUrl } from "./storage.ts";
 import { stringField, uuidField } from "./validation.ts";
 import { wakeMoodWorkers, wakeWorkers } from "./wake-workers.ts";
 
@@ -14,7 +14,8 @@ export type ClientAction =
   | "request-changes"
   | "request-upscale"
   | "get-signed-image"
-  | "cancel-job";
+  | "cancel-job"
+  | "delete-job";
 
 function rpcError(error: { message: string }): never {
   const message = error.message.toLowerCase();
@@ -185,6 +186,15 @@ export function serveClientAction(action: ClientAction): void {
         });
         if (!cancelled) throw new HttpError(409, "invalid_state", "This job cannot be cancelled");
         return json({ job_id: jobId, cancelled: true, request_id: id });
+      }
+      if (action === "delete-job") {
+        await deleteJobAssets(db, auth.user.id, jobId);
+        const deleted = await call(db, "api_delete_job", {
+          p_user_id: auth.user.id,
+          p_job_id: jobId,
+        });
+        if (!deleted) throw new HttpError(404, "not_found", "The requested job was not found");
+        return json({ job_id: jobId, deleted: true, request_id: id });
       }
 
       const generationId = uuidField(input, "generation_id");

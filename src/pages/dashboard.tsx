@@ -1,15 +1,19 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import * as Dialog from '@radix-ui/react-dialog'
 import {
   ArrowRight,
   Clock3,
   Layers3,
   ShieldCheck,
+  Trash2,
   WandSparkles,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { createJob, listJobs } from '../lib/api'
+import { createJob, deleteJob, listJobs } from '../lib/api'
+import type { AlbumJob } from '../lib/types'
 import { getErrorMessage, formatRelativeDate } from '../lib/utils'
 import { Button, Card, SectionLabel, StatusBadge } from '../components/ui'
 import { Turnstile } from '../components/turnstile'
@@ -23,8 +27,10 @@ const examplePrompts = [
 
 export function Dashboard() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [prompt, setPrompt] = useState('')
   const [turnstileToken, setTurnstileToken] = useState<string>()
+  const [deleteTarget, setDeleteTarget] = useState<AlbumJob | null>(null)
   const handleTurnstile = useCallback(
     (token: string | undefined) => setTurnstileToken(token),
     [],
@@ -35,6 +41,15 @@ export function Dashboard() {
     onSuccess: ({ job_id: jobId }) => {
       toast.success('Creative directions are now in production.')
       void navigate(`/jobs/${jobId}`)
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  })
+  const remove = useMutation({
+    mutationFn: (jobId: string) => deleteJob(jobId),
+    onSuccess: () => {
+      toast.success('Project deleted.')
+      setDeleteTarget(null)
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
@@ -166,36 +181,48 @@ export function Dashboard() {
         ) : jobs.data?.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {jobs.data.map((job, index) => (
-              <button
+              <div
                 key={job.id}
-                type="button"
-                onClick={() => void navigate(`/jobs/${job.id}`)}
-                className="focus-ring group overflow-hidden rounded-3xl border border-ink-950/8 bg-white text-left transition hover:-translate-y-0.5 hover:border-ink-950/18 hover:shadow-xl hover:shadow-ink-950/6"
+                className="group relative overflow-hidden rounded-3xl border border-ink-950/8 bg-white text-left transition hover:-translate-y-0.5 hover:border-ink-950/18 hover:shadow-xl hover:shadow-ink-950/6"
               >
-                <div
-                  className={`h-24 ${
-                    index % 3 === 0
-                      ? 'bg-[linear-gradient(135deg,#14181e,#425060)]'
-                      : index % 3 === 1
-                        ? 'bg-[linear-gradient(135deg,#b9f16f,#315a4b)]'
-                        : 'bg-[linear-gradient(135deg,#f0d5c2,#954c55)]'
-                  }`}
-                />
-                <div className="p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <StatusBadge status={job.status} />
-                    <span className="text-[11px] font-medium text-ink-500">
-                      {formatRelativeDate(job.updated_at)}
+                <button
+                  type="button"
+                  onClick={() => void navigate(`/jobs/${job.id}`)}
+                  className="focus-ring block w-full text-left"
+                >
+                  <div
+                    className={`h-24 ${
+                      index % 3 === 0
+                        ? 'bg-[linear-gradient(135deg,#14181e,#425060)]'
+                        : index % 3 === 1
+                          ? 'bg-[linear-gradient(135deg,#b9f16f,#315a4b)]'
+                          : 'bg-[linear-gradient(135deg,#f0d5c2,#954c55)]'
+                    }`}
+                  />
+                  <div className="p-5 pb-14">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <StatusBadge status={job.status} />
+                      <span className="text-[11px] font-medium text-ink-500">
+                        {formatRelativeDate(job.updated_at)}
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 min-h-11 text-sm leading-5 font-semibold text-ink-900">
+                      {job.prompt}
+                    </p>
+                    <span className="mt-5 flex items-center gap-2 text-xs font-bold text-ink-500 transition group-hover:text-ink-950">
+                      Open project <ArrowRight className="size-3.5" />
                     </span>
                   </div>
-                  <p className="line-clamp-2 min-h-11 text-sm leading-5 font-semibold text-ink-900">
-                    {job.prompt}
-                  </p>
-                  <span className="mt-5 flex items-center gap-2 text-xs font-bold text-ink-500 transition group-hover:text-ink-950">
-                    Open project <ArrowRight className="size-3.5" />
-                  </span>
-                </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Delete project: ${job.prompt}`}
+                  onClick={() => setDeleteTarget(job)}
+                  className="focus-ring absolute right-4 bottom-4 grid size-9 place-items-center rounded-full border border-ink-950/8 bg-white text-ink-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
             ))}
           </div>
         ) : (
@@ -215,6 +242,61 @@ export function Dashboard() {
           </Card>
         )}
       </section>
+
+      <Dialog.Root
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) setDeleteTarget(null)
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-ink-950/60 backdrop-blur-sm" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <Dialog.Title className="text-xl font-semibold tracking-tight text-ink-950">
+                  Delete project?
+                </Dialog.Title>
+                <Dialog.Description className="mt-2 text-sm leading-6 text-ink-500">
+                  This will permanently remove the project and all generated
+                  artwork. This action cannot be undone.
+                </Dialog.Description>
+              </div>
+              <Dialog.Close
+                disabled={remove.isPending}
+                className="focus-ring grid size-9 shrink-0 place-items-center rounded-full bg-paper-100 text-ink-500 hover:text-ink-950 disabled:opacity-50"
+              >
+                <X className="size-4" />
+              </Dialog.Close>
+            </div>
+            {deleteTarget ? (
+              <p className="mb-6 line-clamp-2 rounded-2xl bg-paper-50 px-4 py-3 text-sm font-medium text-ink-900">
+                {deleteTarget.prompt}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={remove.isPending}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                isLoading={remove.isPending}
+                onClick={() => {
+                  if (deleteTarget) remove.mutate(deleteTarget.id)
+                }}
+              >
+                Delete project
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   )
 }

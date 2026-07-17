@@ -48,6 +48,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.cancel-job]
 verify_jwt = false
+[functions.delete-job]
+verify_jwt = false
 [functions.process-mood-queue]
 verify_jwt = false
 [functions.process-final-queue]

@@ -83,6 +83,9 @@ export const requestChanges = (jobId: string, changePrompt: string) =>
 export const requestUpscale = (jobId: string) =>
   invoke<{ job_id: string }>('request-upscale', { job_id: jobId })
 
+export const deleteJob = (jobId: string) =>
+  invoke<{ job_id: string; deleted: boolean }>('delete-job', { job_id: jobId })
+
 export const getSignedImage = async (jobId: string, generationId: string) => {
   const result = await invoke<{
     generation_id: string

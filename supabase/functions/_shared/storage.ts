@@ -37,3 +37,17 @@ export async function signedObjectUrl(
   }
   return data.signedUrl;
 }
+
+export async function deleteJobAssets(
+  db: SupabaseClient,
+  ownerId: string,
+  jobId: string,
+): Promise<void> {
+  const prefix = `${ownerId}/${jobId}`;
+  const { data, error } = await db.storage.from(BUCKET).list(prefix, { limit: 1000 });
+  if (error) throw new Error(`Storage list failed: ${error.message}`);
+  if (!data?.length) return;
+  const paths = data.map((item) => `${prefix}/${item.name}`);
+  const { error: removeError } = await db.storage.from(BUCKET).remove(paths);
+  if (removeError) throw new Error(`Storage delete failed: ${removeError.message}`);
+}

@@ -32,7 +32,7 @@ FINAL_IMAGE_RESOLUTION=2K
 UPSCALE_IMAGE_RESOLUTION=4K
 TURNSTILE_SECRET_KEY=<optional-secret-for-public-traffic>
 
-MAX_CONCURRENT_GENERATIONS=4
+MAX_CONCURRENT_GENERATIONS=8
 MOOD_WORKER_BATCH_SIZE=4
 FINAL_WORKER_BATCH_SIZE=2
 UPSCALE_WORKER_BATCH_SIZE=1
@@ -50,7 +50,11 @@ Turnstile adds a further abuse check without retaining the raw IP. Keep the
 queue visibility timeout shorter than or equal to the lease duration, and keep
 the lease duration above the expected provider request time.
 `MAX_CONCURRENT_GENERATIONS` is enforced by atomic expiring rows in
-`worker_leases`; it applies across simultaneous invocations of every worker.
+`worker_leases`; it applies across simultaneous invocations of every worker,
+across every queue (mood/final/upscale) and every job, since the lease pool
+is global rather than partitioned. Keep it comfortably above the largest
+worker batch size (`MOOD_WORKER_BATCH_SIZE` by default) so a single job's
+batch never saturates the entire pool and starve unrelated work of a slot.
 
 ## Client API
 

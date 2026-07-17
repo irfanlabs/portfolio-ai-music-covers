@@ -31,7 +31,12 @@ export function loadConfig() {
     moodResolution: text("MOOD_IMAGE_RESOLUTION", "1K"),
     finalResolution: text("FINAL_IMAGE_RESOLUTION", "2K"),
     upscaleResolution: text("UPSCALE_IMAGE_RESOLUTION", "4K"),
-    maxConcurrent: integer("MAX_CONCURRENT_GENERATIONS", 4, 1, 100),
+    // Keep headroom above the largest worker batch size (mood defaults to 4).
+    // worker_leases is a single global pool shared by every queue and every
+    // job; sizing it equal to (or below) one batch leaves zero slack for
+    // unrelated concurrent work (other jobs, retries, final/upscale queues),
+    // which starves one message out of a lease and leaves it stuck retrying.
+    maxConcurrent: integer("MAX_CONCURRENT_GENERATIONS", 8, 1, 100),
     moodBatch: integer("MOOD_WORKER_BATCH_SIZE", 4, 1, 20),
     finalBatch: integer("FINAL_WORKER_BATCH_SIZE", 2, 1, 20),
     upscaleBatch: integer("UPSCALE_WORKER_BATCH_SIZE", 1, 1, 10),

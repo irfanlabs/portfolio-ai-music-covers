@@ -44,7 +44,15 @@ export function wakeWorkers(
   }
 }
 
-/** Mood jobs enqueue up to four messages; wake enough workers for the batch cap. */
+/**
+ * A single process-mood-queue invocation already reads up to `moodBatch`
+ * messages and processes all of them concurrently in one `Promise.all`
+ * (see worker.ts). Firing multiple concurrent wake calls here does not
+ * parallelize the batch further; it only spins up redundant invocations
+ * that race each other for the same `queue_read` messages and the same
+ * global `worker_leases` slots, which can starve one message out of its
+ * lease and leave it stuck retrying indefinitely. One wake is enough.
+ */
 export function wakeMoodWorkers(config: AppConfig): void {
-  wakeWorkers(config, "mood", Math.min(config.moodBatch, config.maxConcurrent));
+  wakeWorkers(config, "mood");
 }
